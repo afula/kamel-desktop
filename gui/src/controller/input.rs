@@ -1,26 +1,26 @@
-use druid::{Env, Event, EventCtx, Widget};
+use crate::states::SignalState;
 use druid::keyboard_types::Key;
 use druid::widget::Controller;
-use signal::AppData;
+use druid::{Env, Event, EventCtx, Widget};
 
 pub struct MessageInputController;
 
-impl<W> Controller<AppData, W> for MessageInputController
-    where
-        W: Widget<AppData>,
+impl<W> Controller<SignalState, W> for MessageInputController
+where
+    W: Widget<SignalState>,
 {
     fn event(
         &mut self,
         child: &mut W,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut AppData,
+        data: &mut SignalState,
         env: &Env,
     ) {
         match event {
             Event::KeyDown(key) if key.key == Key::Enter && !key.mods.shift() => {
-                if !data.input.is_empty() {
-/*                    // TODO: do this based on current cursor position
+                if !data.data.input.is_empty() {
+                    /*                    // TODO: do this based on current cursor position
                     let count = data.editing_message.match_indices("```").count();
                     if count % 2 == 0 {
                         let formatted = markdown::parse_markdown(&*data.editing_message);

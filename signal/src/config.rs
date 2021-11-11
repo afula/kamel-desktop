@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Path to the JSON file (incl. filename) storing channels and messages.
     #[serde(default = "default_data_path")]
@@ -19,7 +19,7 @@ pub struct Config {
     pub user: User,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct User {
     /// Name to be shown in the application
     pub name: String,
@@ -40,10 +40,10 @@ impl Config {
 
     /// Tries to load configuration from one of the default locations:
     ///
-    /// 1. $XDG_CONFIG_HOME/gurk/gurk.toml
-    /// 2. $XDG_CONFIG_HOME/gurk.toml
-    /// 3. $HOME/.config/gurk/gurk.toml
-    /// 4. $HOME/.gurk.toml
+    /// 1. $XDG_CONFIG_HOME/kamel/kamel.toml
+    /// 2. $XDG_CONFIG_HOME/kamel.toml
+    /// 3. $HOME/.config/kamel/kamel.toml
+    /// 4. $HOME/.kamel.toml
     ///
     /// If no config is found returns `None`.
     pub fn load_installed() -> anyhow::Result<Option<Self>> {
@@ -56,7 +56,7 @@ impl Config {
     pub fn save_new(&self) -> anyhow::Result<()> {
         let config_dir =
             dirs::config_dir().ok_or_else(|| anyhow!("could not find default config directory"))?;
-        let config_file = config_dir.join("gurk/gurk.toml");
+        let config_file = config_dir.join("kamel/kamel.toml");
         self.save_new_at(config_file)
     }
 
@@ -100,27 +100,27 @@ impl Config {
 /// Get the location of the first found default config file paths
 /// according to the following order:
 ///
-/// 1. $XDG_CONFIG_HOME/gurk/gurk.toml
-/// 2. $XDG_CONFIG_HOME/gurk.yml
-/// 3. $HOME/.config/gurk/gurk.toml
-/// 4. $HOME/.gurk.toml
+/// 1. $XDG_CONFIG_HOME/kamel/kamel.toml
+/// 2. $XDG_CONFIG_HOME/kamel.yml
+/// 3. $HOME/.config/kamel/kamel.toml
+/// 4. $HOME/.kamel.toml
 fn installed_config() -> Option<PathBuf> {
     // case 1, and 3 as fallback (note: case 2 is not possible if 1 is not possible)
     let config_dir = dirs::config_dir()?;
-    let config_file = config_dir.join("gurk/gurk.toml");
+    let config_file = config_dir.join("kamel/kamel.toml");
     if config_file.exists() {
         return Some(config_file);
     }
 
     // case 2
-    let config_file = config_dir.join("gurk.toml");
+    let config_file = config_dir.join("kamel.toml");
     if config_file.exists() {
         return Some(config_file);
     }
 
     // case 4
     let home_dir = dirs::home_dir()?;
-    let config_file = home_dir.join(".gurk.toml");
+    let config_file = home_dir.join(".kamel.toml");
     if config_file.exists() {
         return Some(config_file);
     }
@@ -135,18 +135,18 @@ pub fn default_signal_db_path() -> PathBuf {
 
 /// Fallback to legacy data path location
 pub fn fallback_data_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|p| p.join(".gurk.data.json"))
+    dirs::home_dir().map(|p| p.join(".kamel.data.json"))
 }
 
 fn default_data_dir() -> PathBuf {
     match dirs::data_dir() {
-        Some(dir) => dir.join("gurk"),
+        Some(dir) => dir.join("kamel"),
         None => panic!("default data directory not found, $XDG_DATA_HOME and $HOME are unset"),
     }
 }
 
 fn default_data_path() -> PathBuf {
-    default_data_dir().join("gurk.data.json")
+    default_data_dir().join("kamel.data.json")
 }
 
 #[cfg(test)]
@@ -179,7 +179,7 @@ mod tests {
         let dir = tempdir()?;
 
         let config = example_config_with_random_paths(&dir);
-        let config_path = dir.path().join("some-dir/some-other-dir/gurk.toml");
+        let config_path = dir.path().join("some-dir/some-other-dir/kamel.toml");
 
         config.save_new_at(&config_path)?;
         let loaded_config = Config::load(config_path)?;

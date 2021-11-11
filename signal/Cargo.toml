@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-presage = { git = "https://github.com/whisperfish/presage.git", branch = "main" }
-
+#presage = { git = "https://github.com/whisperfish/presage.git", branch = "main" }
+presage = { path = "../presage" }
 anyhow = "1.0.40"
 async-trait = "0.1.51"
 chrono = { version = "0.4.19", features = ["serde"] }

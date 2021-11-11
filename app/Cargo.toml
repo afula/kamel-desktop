@@ -1,15 +1,27 @@
 [package]
-name = "app"
+name = "kamel"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+#presage = { git = "https://github.com/whisperfish/presage.git", branch = "main" }
+presage = { path = "../presage"}
 druid = {git = "https://github.com/linebender/druid.git" , features =["im"] }
 async-std = {version = "1.10.0"}
 futures = "0.3.17"
+tokio = { version = "1.5.0", default-features = false, features = ["rt-multi-thread", "macros", "net", "time"] }
+tokio-stream = "0.1.5"
 gui = {path = "../gui"}
+signal = {path = "../signal"}
+log = "0.4.14"
+log-panics = "2.0.0"
+log4rs = "1.0.0"
+uuid = {version = "0.8.2", features = ["serde"]}
+anyhow = "1.0.40"
+#pg-embed = { version = "0.6", default-features = false, features = ["rt_tokio"] }
+#sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" ] }
 
 [[bin]]
 name = "kamel"

@@ -1,13 +1,13 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use super::AppData;
 
 use anyhow::Context;
 use log::info;
 use unicode_width::UnicodeWidthStr;
 use uuid::Uuid;
 
-use super::AppData;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
 /// Data storage abstraction
 ///
@@ -28,7 +28,6 @@ pub trait Storage {
 }
 
 /// Storage based on a single JSON file.
-#[derive(Clone)]
 pub struct JsonStorage {
     data_path: PathBuf,
     fallback_data_path: Option<PathBuf>,
@@ -93,7 +92,7 @@ impl JsonStorage {
                 )
             })
         } else {
-            Ok(Self::load_app_data_from(data_path).unwrap())
+            Ok(Self::load_app_data_from(data_path).unwrap_or_default())
         }
     }
 
@@ -109,9 +108,9 @@ impl JsonStorage {
 
 #[cfg(test)]
 pub mod test {
-    use gui::states::app::AppData;
-
     use super::Storage;
+
+    use crate::app::AppData;
 
     /// In-memory storage used for testing.
     pub struct InMemoryStorage {}
@@ -123,7 +122,7 @@ pub mod test {
     }
 
     impl Storage for InMemoryStorage {
-        fn save_app_data(&self, _data: &gui::states::app::AppData) -> anyhow::Result<()> {
+        fn save_app_data(&self, _data: &crate::app::AppData) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -138,12 +137,13 @@ pub mod test {
 
 #[cfg(test)]
 mod tests {
-    use gui::states::app::{Channel, ChannelId};
-    use tempfile::NamedTempFile;
-
-    use crate::util::StatefulList;
+    use crate::{
+        app::{Channel, ChannelId},
+        util::StatefulList,
+    };
 
     use super::*;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_json_storage_load_existing_app_data() -> anyhow::Result<()> {
@@ -163,7 +163,7 @@ mod tests {
         let loaded_app_data = storage.load_app_data(user_id, user_name)?;
 
         assert_eq!(loaded_app_data, app_data);
-        // assert_eq!(loaded_app_data.channels.state.selected(), None);
+        assert_eq!(loaded_app_data.channels.state.selected(), None);
 
         Ok(())
     }

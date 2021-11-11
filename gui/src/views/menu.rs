@@ -1,12 +1,12 @@
+use crate::states::SignalState;
 use druid::commands;
 use druid::platform_menus;
 use druid::{
     Data, Env, FileDialogOptions, FileSpec, KbKey, LocalizedString, Menu, MenuItem, Point, SysMods,
     WindowId,
 };
-use signal::AppData;
 
-pub fn make_menu(_window: Option<WindowId>, data: &AppData, _: &Env) -> Menu<AppData> {
+pub fn make_menu(_window: Option<WindowId>, data: &SignalState, _: &Env) -> Menu<SignalState> {
     let menu = if cfg!(target_os = "macos") {
         Menu::empty().entry(platform_menus::mac::application::default())
     } else {
@@ -71,7 +71,7 @@ fn view_menu<T: Data>() -> Menu<T> {
             .hotkey(SysMods::Cmd, "0"),
         )
 }
-/*fn file_menu(data: &AppData) -> Menu<AppData> {
+/*fn file_menu(data: &SignalState) -> Menu<SignalState> {
     let has_path = data.workspace.font.path.is_some();
     let mut menu = Menu::new(LocalizedString::new("common-menu-file-menu"))
         .entry(platform_menus::mac::file::new_file().enabled(false))

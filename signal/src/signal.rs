@@ -4,7 +4,6 @@ use crate::util::utc_now_timestamp_msec;
 
 use anyhow::{bail, Context as _};
 use async_trait::async_trait;
-use druid::{Data, Lens};
 use gh_emoji::Replacer;
 use log::error;
 use presage::prelude::content::Reaction;
@@ -13,8 +12,9 @@ use presage::prelude::{
     AttachmentSpec, ContentBody, DataMessage, GroupContextV2, GroupMasterKey, SignalServers,
 };
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use uuid::Uuid;
+
+use std::path::PathBuf;
 
 pub const GROUP_MASTER_KEY_LEN: usize = 32;
 pub const GROUP_IDENTIFIER_LEN: usize = 32;
@@ -100,17 +100,14 @@ impl SignalManager for PresageManager {
             ..Default::default()
         };
 
-        match channel.id.clone() {
+        match channel.id {
             ChannelId::User(uuid) => {
                 let manager = self.manager.clone();
                 tokio::task::spawn_local(async move {
                     upload_attachments(&manager, attachments, &mut data_message).await;
 
                     let body = ContentBody::DataMessage(data_message);
-                    if let Err(e) = manager
-                        .send_message(Uuid::parse_str(uuid.as_str()).unwrap(), body, timestamp)
-                        .await
-                    {
+                    if let Err(e) = manager.send_message(uuid, body, timestamp).await {
                         // TODO: Proper error handling
                         log::error!("Failed to send message to {}: {}", uuid, e);
                     }
@@ -154,7 +151,7 @@ impl SignalManager for PresageManager {
         }
 
         Message {
-            from_id: self.user_id().to_string(),
+            from_id: self.user_id(),
             message: Some(message),
             arrived_at: timestamp,
             quote: quote_message,
@@ -165,7 +162,7 @@ impl SignalManager for PresageManager {
 
     fn send_reaction(&self, channel: &Channel, message: &Message, emoji: String, remove: bool) {
         let timestamp = utc_now_timestamp_msec();
-        let target_author_uuid = message.from_id.to_owned();
+        let target_author_uuid = message.from_id;
         let target_sent_timestamp = message.arrived_at;
 
         let mut data_message = DataMessage {
@@ -178,15 +175,12 @@ impl SignalManager for PresageManager {
             ..Default::default()
         };
 
-        match (channel.id.clone(), channel.group_data.as_ref()) {
+        match (channel.id, channel.group_data.as_ref()) {
             (ChannelId::User(uuid), _) => {
                 let manager = self.manager.clone();
                 let body = ContentBody::DataMessage(data_message);
                 tokio::task::spawn_local(async move {
-                    if let Err(e) = manager
-                        .send_message(Uuid::parse_str(uuid.as_str()).unwrap(), body, timestamp)
-                        .await
-                    {
+                    if let Err(e) = manager.send_message(uuid, body, timestamp).await {
                         // TODO: Proper error handling
                         log::error!("failed to send reaction {} to {}: {}", &emoji, uuid, e);
                     }
@@ -287,12 +281,11 @@ async fn upload_attachments(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Data, Lens)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Attachment {
     pub id: String,
     pub content_type: String,
-    #[data(ignore)]
     pub filename: PathBuf,
     pub size: u64,
 }
@@ -420,9 +413,9 @@ pub mod test {
 
         fn send_text(
             &self,
-            _channel: &gui::states::app::Channel,
+            _channel: &crate::app::Channel,
             text: String,
-            quote_message: Option<&gui::states::app::Message>,
+            quote_message: Option<&crate::app::Message>,
             _attachments: Vec<(AttachmentSpec, Vec<u8>)>,
         ) -> Message {
             let message: String = self.emoji_replacer.replace_all(&text).into_owned();
@@ -449,8 +442,8 @@ pub mod test {
 
         fn send_reaction(
             &self,
-            _channel: &gui::states::app::Channel,
-            _message: &gui::states::app::Message,
+            _channel: &crate::app::Channel,
+            _message: &crate::app::Message,
             _emoji: String,
             _remove: bool,
         ) {

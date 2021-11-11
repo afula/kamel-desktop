@@ -1,3 +1,4 @@
+use crate::states::SignalState;
 use druid::kurbo::Line;
 use druid::lens::LensExt;
 use druid::text::format::ParseFormatter;
@@ -7,18 +8,16 @@ use druid::{
 };
 use std::sync::Arc;
 
-use signal::AppData;
-
 #[derive(Debug, Default)]
 pub struct MainMenuDelegate;
 
-impl AppDelegate<AppData> for MainMenuDelegate {
+impl AppDelegate<SignalState> for MainMenuDelegate {
     fn command(
         &mut self,
         ctx: &mut DelegateCtx,
         _target: Target,
         cmd: &Command,
-        data: &mut AppData,
+        data: &mut SignalState,
         _env: &Env,
     ) -> Handled {
         if let Some(info) = cmd.get(druid::commands::OPEN_FILE) {

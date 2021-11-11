@@ -6,20 +6,17 @@ use druid::{
     widget::{prelude::*, Controller},
     Code, ExtEventSink, InternalLifeCycle, KbKey, WindowHandle,
 };
-use signal::AppData;
+use crate::states::SignalData;
 
-pub struct ChannelController {
-    // sender: Option<Sender<bool>>,
-    thread: Option<JoinHandle<()>>,
-}
+pub struct ChannelController;
 
 impl ChannelController {
-    pub fn new() -> Self {
+    /*    pub fn new() -> Self {
         Self {
             // sender: None,
             thread: None,
         }
-    }
+    }*/
 
     /*    fn open_audio_output_and_start_threads(
         &mut self,
@@ -134,16 +131,16 @@ impl ChannelController {
     }*/
 }
 
-impl<W> Controller<AppData, W> for ChannelController
+impl<W> Controller<SignalData, W> for ChannelController
 where
-    W: Widget<AppData>,
+    W: Widget<SignalData>,
 {
     fn event(
         &mut self,
         child: &mut W,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut AppData,
+        data: &mut SignalData,
         env: &Env,
     ) {
         match event {
@@ -187,7 +184,7 @@ where
         child: &mut W,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &AppData,
+        data: &SignalData,
         env: &Env,
     ) {
         match event {
@@ -217,8 +214,8 @@ where
         &mut self,
         child: &mut W,
         ctx: &mut UpdateCtx,
-        old_data: &AppData,
-        data: &AppData,
+        old_data: &SignalData,
+        data: &SignalData,
         env: &Env,
     ) {
         /*        if !old_data.playback.volume.same(&data.playback.volume) {
