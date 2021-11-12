@@ -474,7 +474,8 @@ pub async fn save_attachment_on_disk(
 ) -> anyhow::Result<()> {
     let attach_file = signal_manager.get_attachment(&attachment_pointer).await?;
     use mime2ext::mime2ext;
-
+    let size = attachment_pointer.size() as usize;
+    log::info!("attachment size and stream size: {:?} == {:}", size,&attach_file.len());
     let ext = {
         let file_name = attachment_pointer.file_name();
             use std::ffi::OsStr;
@@ -489,6 +490,6 @@ pub async fn save_attachment_on_disk(
                 Some(extension) => extension
             }
     };
-    save_attachment(attachment_path.as_ref(), ext, attach_file.as_slice()).await?;
+    save_attachment(attachment_path.as_ref(), ext, &attach_file[..size]).await?;
     Ok(())
 }

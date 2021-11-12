@@ -49,7 +49,7 @@ fn init_file_logger(verbosity: u8) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_file_logger(1)?;
+    init_file_logger(2)?;
     log_panics::init();
     let main_window = WindowDesc::new(make_ui())
         .title(LocalizedString::new("kamel-window-title").with_placeholder("Kamel"));
