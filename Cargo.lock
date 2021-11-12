@@ -1884,6 +1884,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "infer"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "865e8a58ae8e24d2c4412c31344afa1d302a3740ad67528c10f50d6876cdcf55"
+
+[[package]]
 name = "input_buffer"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1986,9 +1992,12 @@ dependencies = [
  "druid",
  "futures",
  "gui",
+ "infer",
  "log",
  "log-panics",
  "log4rs",
+ "mime2ext",
+ "mime_guess",
  "presage",
  "signal",
  "tokio",
@@ -2268,6 +2277,11 @@ name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
+
+[[package]]
+name = "mime2ext"
+version = "0.1.51"
+source = "git+https://github.com/blyxxyz/mime2ext.git#99770ca9ce247d03deff0bb0754f9f9492a9a453"
 
 [[package]]
 name = "mime_guess"
@@ -3938,7 +3952,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "588b2d10a336da58d877567cd8fb8a14b463e2104910f8132cd054b4b96e29ee"
 dependencies = [
  "autocfg",
+ "bytes",
  "libc",
+ "memchr",
  "mio",
  "num_cpus",
  "pin-project-lite",
@@ -4341,6 +4357,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
+ "getrandom 0.2.3",
  "serde",
 ]
 

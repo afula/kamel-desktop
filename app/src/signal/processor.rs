@@ -6,6 +6,7 @@ use gui::controller::command;
 use gui::states::IncomingMsg;
 use gui::views::style::Theme;
 use log::{error, info};
+use presage::prelude::proto::AttachmentPointer;
 use presage::prelude::{
     content::{ContentBody, DataMessage, Metadata, SyncMessage},
     proto::{
@@ -15,6 +16,7 @@ use presage::prelude::{
     },
     AttachmentSpec, Content, GroupMasterKey, GroupSecretParams, ServiceAddress,
 };
+use signal::attachment::save_attachment;
 use signal::{signal::Manager, AppData, ChannelId, Event, Message};
 use std::str::FromStr;
 use tokio::time::sleep;
@@ -53,7 +55,7 @@ impl SignalProcessor {
         });*/
 
         let inner_tx = tx.clone();
-
+        let signal_manager_clone = signal_manager.clone();
         tokio::task::spawn_local(async move {
             loop {
                 let messages = if !is_online().await {
@@ -97,7 +99,7 @@ impl SignalProcessor {
             println!("1 s have elapsed");
             match rx.recv().await {
                 Some(Event::Message(content)) => {
-                    if let Err(e) = self.on_message(content).await {
+                    if let Err(e) = self.on_message(content, &signal_manager_clone).await {
                         error!("failed on incoming message: {}", e);
                     }
                     println!("processor state: {:?}", &self.data.channels);
@@ -119,7 +121,11 @@ impl SignalProcessor {
         }
         res
     }
-    pub async fn on_message(&mut self, content: Content) -> anyhow::Result<()> {
+    pub async fn on_message(
+        &mut self,
+        content: Content,
+        signal_manager: &Manager,
+    ) -> anyhow::Result<()> {
         log::info!("incoming: {:?}", content);
 
         let user_id = self.data.user_id;
@@ -164,7 +170,9 @@ impl SignalProcessor {
                             timestamp: Some(timestamp),
                             message:
                                 Some(DataMessage {
-                                    body: Some(text),
+                                    // body: Some(text),
+                                    body,
+                                    attachments,
                                     group_v2,
                                     quote,
                                     ..
@@ -206,11 +214,21 @@ impl SignalProcessor {
                 };
 
                 let quote = quote.and_then(Message::from_quote).map(Box::new);
+
+                let text = match body {
+                    //TODO message body is empty when attachments without message maybe we can add a field as tag
+                    Some(text) => text,
+                    None => String::new(),
+                };
                 let message = Message {
                     quote,
                     ..Message::new(user_id, text, timestamp)
                 };
-                self.send_gui_incoming_msg(&from,&channel_id,&message)?;
+                let attachment_path = "/home/damo/.local/share/kamel/";
+                for attachment in attachments {
+                    save_attachment_on_disk(attachment_path, &signal_manager, &attachment).await?;
+                }
+                self.send_gui_incoming_msg(&from, &channel_id, &message)?;
                 (channel_id, message)
             }
             // Incoming direct/group message
@@ -243,7 +261,7 @@ impl SignalProcessor {
                     let master_key = master_key
                         .try_into()
                         .map_err(|_| anyhow!("invalid group master key"))?;
-                    let (channel_id,_name) = self
+                    let (channel_id, _name) = self
                         .data
                         .ensure_group_channel_exists(master_key, revision)
                         .await
@@ -275,7 +293,7 @@ impl SignalProcessor {
                     quote,
                     ..Message::new(uuid, text, timestamp)
                 };
-                self.send_gui_incoming_msg(from.as_str(),&channel_id,&message)?;
+                self.send_gui_incoming_msg(from.as_str(), &channel_id, &message)?;
                 (channel_id, message)
             }
             // reactions
@@ -387,64 +405,90 @@ impl SignalProcessor {
 
         Ok(())
     }
-    fn send_gui_incoming_msg(&self, name: &str,id: &signal::ChannelId, message: &signal::Message) -> anyhow::Result<()>{
-            use gui::states::Attachment;
-            use gui::states::ChannelId;
-            use gui::states::GroupIdentifierBytes;
-            use gui::states::Message;
-            let channel_id = match &id {
-                signal::ChannelId::User(user) => ChannelId::User(user.to_string()),
-                signal::ChannelId::Group(group) => {
-                    ChannelId::Group(group.to_owned().into())
+    fn send_gui_incoming_msg(
+        &self,
+        name: &str,
+        id: &signal::ChannelId,
+        message: &signal::Message,
+    ) -> anyhow::Result<()> {
+        use gui::states::Attachment;
+        use gui::states::ChannelId;
+        use gui::states::GroupIdentifierBytes;
+        use gui::states::Message;
+        let channel_id = match &id {
+            signal::ChannelId::User(user) => ChannelId::User(user.to_string()),
+            signal::ChannelId::Group(group) => ChannelId::Group(group.to_owned().into()),
+        };
+        let quote_msg = match &message.quote {
+            None => None,
+            Some(q) => {
+                let mut attachments = Vector::new();
+                for attachment in &q.attachments {
+                    attachments.push_back(Attachment {
+                        id: attachment.id.to_owned(),
+                        content_type: attachment.content_type.to_owned(),
+                        filename: attachment.filename.to_string_lossy().to_string(),
+                        size: 0,
+                    })
                 }
-            };
-            let quote_msg = match &message.quote {
-                None => None,
-                Some(q) => {
-                    let mut attachments = Vector::new();
-                    for attachment in &q.attachments {
-                        attachments.push_back(Attachment {
-                            id: attachment.id.to_owned(),
-                            content_type: attachment.content_type.to_owned(),
-                            filename: attachment.filename.to_string_lossy().to_string(),
-                            size: 0,
-                        })
-                    }
-                    Some(Box::new(Message {
-                        from_id: q.from_id.to_string(),
-                        message: q.message.to_owned(),
-                        quote: None,
-                        attachments,
-                        reactions: Default::default(),
-                    }))
-                }
-            };
-            let mut attachments = Vector::new();
-            for attachment in &message.attachments {
-                attachments.push_back(Attachment {
-                    id: attachment.id.to_owned(),
-                    content_type: attachment.content_type.to_owned(),
-                    filename: attachment.filename.to_string_lossy().to_string(),
-                    size: 0,
-                })
+                Some(Box::new(Message {
+                    from_id: q.from_id.to_string(),
+                    message: q.message.to_owned(),
+                    quote: None,
+                    attachments,
+                    reactions: Default::default(),
+                }))
             }
-            let message = Message {
-                from_id: message.from_id.to_string(),
-                message: message.message.to_owned(),
-                quote: quote_msg,
-                attachments,
-                reactions: Default::default(),
-            };
-            let incoming_msg = IncomingMsg {
-                id: channel_id,
-                name: name.to_string(),
-                message,
-            };
-            self.event_sink
-                .submit_command(command::SET_INCOMING_MSG, incoming_msg, Target::Auto)
-                .context("send Direct/group message by us from a different device")?;
+        };
+        let mut attachments = Vector::new();
+        for attachment in &message.attachments {
+            attachments.push_back(Attachment {
+                id: attachment.id.to_owned(),
+                content_type: attachment.content_type.to_owned(),
+                filename: attachment.filename.to_string_lossy().to_string(),
+                size: 0,
+            })
+        }
+        let message = Message {
+            from_id: message.from_id.to_string(),
+            message: message.message.to_owned(),
+            quote: quote_msg,
+            attachments,
+            reactions: Default::default(),
+        };
+        let incoming_msg = IncomingMsg {
+            id: channel_id,
+            name: name.to_string(),
+            message,
+        };
+        self.event_sink
+            .submit_command(command::SET_INCOMING_MSG, incoming_msg, Target::Auto)
+            .context("send Direct/group message by us from a different device")?;
         Ok(())
     }
 }
+pub async fn save_attachment_on_disk(
+    attachment_path: &str,
+    signal_manager: &Manager,
+    attachment_pointer: &AttachmentPointer,
+) -> anyhow::Result<()> {
+    let attach_file = signal_manager.get_attachment(&attachment_pointer).await?;
+    use mime2ext::mime2ext;
 
-
+    let ext = {
+        let file_name = attachment_pointer.file_name();
+            use std::ffi::OsStr;
+            use std::path::Path;
+            match Path::new(file_name).extension().and_then(OsStr::to_str){
+                None => {
+                    match infer::get(&attach_file){
+                        Some(mime) => mime.extension(),
+                        None => ""
+                    }
+                }
+                Some(extension) => extension
+            }
+    };
+    save_attachment(attachment_path.as_ref(), ext, attach_file.as_slice()).await?;
+    Ok(())
+}

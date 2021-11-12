@@ -18,6 +18,9 @@ log4rs = "1.0.0"
 anyhow = "1.0.45"
 async-std = {version = "1.10.0"}
 futures = "0.3.17"
+mime_guess = "2.0.3"
+mime2ext = {git ="https://github.com/blyxxyz/mime2ext.git"}
+infer = "0.3"
 gui = {path = "../gui"}
 
 [[bin]]
