@@ -12,14 +12,13 @@ use druid::{
 };
 use futures::{AsyncReadExt, AsyncWriteExt};
 use gui::states::{SignalState, OWNER};
-use gui::views::make_ui;
+use gui::views::{make_ui, MainDelegate};
 use kamel::signal::processor::SignalProcessor;
 use log::{error, info};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_stream::StreamExt;
-use app::signal::processor::SignalProcessor;
 
 use signal::storage::Storage;
 use signal::util::{LazyRegex, ATTACHMENT_REGEX, URL_REGEX};
@@ -65,7 +64,10 @@ async fn main() -> anyhow::Result<()> {
     let loaded_data =
         AppData::try_new(config, PresageManager::new(signal_manager.clone()), storage)?;
     use std::sync::Arc;
-    let mut processor = SignalProcessor { data: loaded_data };
+    let mut processor = SignalProcessor {
+        data: loaded_data,
+        event_sink,
+    };
 
     let signal_state = SignalState::default();
     use tokio::runtime::Runtime;
@@ -74,21 +76,13 @@ async fn main() -> anyhow::Result<()> {
 
     std::thread::spawn(move || {
         tokio::task::LocalSet::new().block_on(&rt, async {
-            processor.process(signal_manager, event_sink).await;
+            processor.process(signal_manager).await;
         });
-    });
-    /*    tokio::task::spawn(async move {
-        processor.process(signal_manager, event_sink).await;
-    });*/
-    // task.await.unwrap();
-    let state_for_print = signal_state.clone();
-    std::thread::spawn(move || loop {
-        println!("druid state: {:?}", &state_for_print.data.channels);
-        std::thread::sleep(std::time::Duration::from_secs(1));
     });
 
     launcher
         .log_to_console()
+        .delegate(MainDelegate)
         .launch(signal_state)
         .expect("launch failed");
     Ok(())

@@ -1,6 +1,9 @@
 use anyhow::anyhow;
 use anyhow::Context;
-use druid::{Data, ExtEventSink, Lens};
+use druid::im::Vector;
+use druid::{Data, ExtEventSink, Lens, Target};
+use gui::controller::command;
+use gui::states::IncomingMsg;
 use gui::views::style::Theme;
 use log::{error, info};
 use presage::prelude::{
@@ -17,6 +20,7 @@ use std::str::FromStr;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
+
 async fn is_online() -> bool {
     tokio::net::TcpStream::connect("detectportal.firefox.com:80")
         .await
@@ -25,14 +29,10 @@ async fn is_online() -> bool {
 // #[derive(Data,Lens)]
 pub struct SignalProcessor {
     pub data: AppData,
-    // pub theme: Theme,
+    pub event_sink: ExtEventSink,
 }
 impl SignalProcessor {
-    pub async fn process(
-        &mut self,
-        signal_manager: Manager,
-        event_sink: ExtEventSink,
-    ) -> anyhow::Result<()> {
+    pub async fn process(&mut self, signal_manager: Manager) -> anyhow::Result<()> {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Event>(1024);
 
         /*    tokio::spawn({
@@ -124,75 +124,80 @@ impl SignalProcessor {
 
         let user_id = self.data.user_id;
 
-        let (channel_id, message) = match (content.metadata, content.body) {
+        let (channel_idx, message) = match (content.metadata, content.body) {
             // Private note message
             (
                 _,
                 ContentBody::SynchronizeMessage(SyncMessage {
-                                                    sent:
-                                                    Some(Sent {
-                                                             destination_uuid: Some(destination_uuid),
-                                                             timestamp: Some(timestamp),
-                                                             message:
-                                                             Some(DataMessage {
-                                                                      body: Some(text), ..
-                                                                  }),
-                                                             ..
-                                                         }),
-                                                    ..
-                                                }),
+                    sent:
+                        Some(Sent {
+                            destination_uuid: Some(destination_uuid),
+                            timestamp: Some(timestamp),
+                            message:
+                                Some(DataMessage {
+                                    body: Some(text), ..
+                                }),
+                            ..
+                        }),
+                    ..
+                }),
             ) if destination_uuid.parse() == Ok(user_id) => {
-                let channel_id = self.data.ensure_own_channel_exists();
+                let channel_idx = self.data.ensure_own_channel_exists();
                 let message = Message::new(user_id, text, timestamp);
-                (channel_id, message)
+                (channel_idx, message)
             }
             // Direct/group message by us from a different device
             (
                 Metadata {
                     sender:
-                    ServiceAddress {
-                        uuid: Some(sender_uuid),
-                        ..
-                    },
+                        ServiceAddress {
+                            uuid: Some(sender_uuid),
+                            ..
+                        },
                     ..
                 },
                 ContentBody::SynchronizeMessage(SyncMessage {
-                                                    sent:
-                                                    Some(Sent {
-                                                             destination_e164,
-                                                             destination_uuid,
-                                                             timestamp: Some(timestamp),
-                                                             message:
-                                                             Some(DataMessage {
-                                                                      body: Some(text),
-                                                                      group_v2,
-                                                                      quote,
-                                                                      ..
-                                                                  }),
-                                                             ..
-                                                         }),
-                                                    ..
-                                                }),
+                    sent:
+                        Some(Sent {
+                            destination_e164,
+                            destination_uuid,
+                            timestamp: Some(timestamp),
+                            message:
+                                Some(DataMessage {
+                                    body: Some(text),
+                                    group_v2,
+                                    quote,
+                                    ..
+                                }),
+                            ..
+                        }),
+                    ..
+                }),
             ) if sender_uuid == user_id => {
+                let mut from = String::new();
                 let channel_id = if let Some(GroupContextV2 {
-                                                 master_key: Some(master_key),
-                                                 revision: Some(revision),
-                                                 ..
-                                             }) = group_v2
+                    master_key: Some(master_key),
+                    revision: Some(revision),
+                    ..
+                }) = group_v2
                 {
                     // message to a group
                     let master_key = master_key
                         .try_into()
                         .map_err(|_| anyhow!("invalid master key"))?;
-                    self.data
+                    let (id, name) = self
+                        .data
                         .ensure_group_channel_exists(master_key, revision)
                         .await
-                        .context("failed to create group channel")?
+                        .context("failed to create group channel")?;
+                    from = name;
+                    id
                 } else if let (Some(destination_uuid), Some(destination_e164)) = (
                     destination_uuid.and_then(|s| s.parse().ok()),
                     destination_e164,
                 ) {
                     // message to a contact
+                    from = destination_e164.to_owned();
                     self.data
                         .ensure_contact_channel_exists(destination_uuid, &destination_e164)
                         .await
@@ -205,39 +210,40 @@ impl SignalProcessor {
                     quote,
                     ..Message::new(user_id, text, timestamp)
                 };
+                self.send_gui_incoming_msg(&from,&channel_id,&message)?;
                 (channel_id, message)
             }
             // Incoming direct/group message
             (
                 Metadata {
                     sender:
-                    ServiceAddress {
-                        uuid: Some(uuid),
-                        phonenumber: Some(phone_number),
-                        ..
-                    },
+                        ServiceAddress {
+                            uuid: Some(uuid),
+                            phonenumber: Some(phone_number),
+                            ..
+                        },
                     ..
                 },
                 ContentBody::DataMessage(DataMessage {
-                                             body: Some(text),
-                                             group_v2,
-                                             timestamp: Some(timestamp),
-                                             profile_key: Some(profile_key),
-                                             quote,
-                                             ..
-                                         }),
+                    body: Some(text),
+                    group_v2,
+                    timestamp: Some(timestamp),
+                    profile_key: Some(profile_key),
+                    quote,
+                    ..
+                }),
             ) => {
                 let (channel_id, from) = if let Some(GroupContextV2 {
-                                                         master_key: Some(master_key),
-                                                         revision: Some(revision),
-                                                         ..
-                                                     }) = group_v2
+                    master_key: Some(master_key),
+                    revision: Some(revision),
+                    ..
+                }) = group_v2
                 {
                     // incoming group message
                     let master_key = master_key
                         .try_into()
                         .map_err(|_| anyhow!("invalid group master key"))?;
-                    let channel_id = self
+                    let (channel_id,_name) = self
                         .data
                         .ensure_group_channel_exists(master_key, revision)
                         .await
@@ -269,45 +275,46 @@ impl SignalProcessor {
                     quote,
                     ..Message::new(uuid, text, timestamp)
                 };
+                self.send_gui_incoming_msg(from.as_str(),&channel_id,&message)?;
                 (channel_id, message)
             }
             // reactions
             (
                 Metadata {
                     sender:
-                    ServiceAddress {
-                        uuid: Some(sender_uuid),
-                        ..
-                    },
+                        ServiceAddress {
+                            uuid: Some(sender_uuid),
+                            ..
+                        },
                     ..
                 },
                 ContentBody::SynchronizeMessage(SyncMessage {
-                                                    sent:
-                                                    Some(Sent {
-                                                             destination_uuid,
-                                                             message:
-                                                             Some(DataMessage {
-                                                                      body: None,
-                                                                      group_v2,
-                                                                      reaction:
-                                                                      Some(Reaction {
-                                                                               emoji: Some(emoji),
-                                                                               remove,
-                                                                               target_author_uuid: Some(target_author_uuid),
-                                                                               target_sent_timestamp: Some(target_sent_timestamp),
-                                                                               ..
-                                                                           }),
-                                                                      ..
-                                                                  }),
-                                                             ..
-                                                         }),
-                                                    ..
-                                                }),
+                    sent:
+                        Some(Sent {
+                            destination_uuid,
+                            message:
+                                Some(DataMessage {
+                                    body: None,
+                                    group_v2,
+                                    reaction:
+                                        Some(Reaction {
+                                            emoji: Some(emoji),
+                                            remove,
+                                            target_author_uuid: Some(target_author_uuid),
+                                            target_sent_timestamp: Some(target_sent_timestamp),
+                                            ..
+                                        }),
+                                    ..
+                                }),
+                            ..
+                        }),
+                    ..
+                }),
             ) => {
                 let channel_id = if let Some(GroupContextV2 {
-                                                 master_key: Some(master_key),
-                                                 ..
-                                             }) = group_v2
+                    master_key: Some(master_key),
+                    ..
+                }) = group_v2
                 {
                     ChannelId::from_master_key_bytes(master_key)?
                 } else if let Some(uuid) = destination_uuid {
@@ -329,30 +336,30 @@ impl SignalProcessor {
             (
                 Metadata {
                     sender:
-                    ServiceAddress {
-                        uuid: Some(sender_uuid),
-                        ..
-                    },
+                        ServiceAddress {
+                            uuid: Some(sender_uuid),
+                            ..
+                        },
                     ..
                 },
                 ContentBody::DataMessage(DataMessage {
-                                             body: None,
-                                             group_v2,
-                                             reaction:
-                                             Some(Reaction {
-                                                      emoji: Some(emoji),
-                                                      remove,
-                                                      target_sent_timestamp: Some(target_sent_timestamp),
-                                                      target_author_uuid: Some(target_author_uuid),
-                                                      ..
-                                                  }),
-                                             ..
-                                         }),
+                    body: None,
+                    group_v2,
+                    reaction:
+                        Some(Reaction {
+                            emoji: Some(emoji),
+                            remove,
+                            target_sent_timestamp: Some(target_sent_timestamp),
+                            target_author_uuid: Some(target_author_uuid),
+                            ..
+                        }),
+                    ..
+                }),
             ) => {
                 let channel_id = if let Some(GroupContextV2 {
-                                                 master_key: Some(master_key),
-                                                 ..
-                                             }) = group_v2
+                    master_key: Some(master_key),
+                    ..
+                }) = group_v2
                 {
                     ChannelId::from_master_key_bytes(master_key)?
                 } else if sender_uuid == self.data.user_id {
@@ -376,8 +383,68 @@ impl SignalProcessor {
             _ => return Ok(()),
         };
 
-        self.data.add_message_to_channel(channel_id, message);
+        self.data.add_message_to_channel(channel_idx, message);
 
         Ok(())
     }
+    fn send_gui_incoming_msg(&self, name: &str,id: &signal::ChannelId, message: &signal::Message) -> anyhow::Result<()>{
+            use gui::states::Attachment;
+            use gui::states::ChannelId;
+            use gui::states::GroupIdentifierBytes;
+            use gui::states::Message;
+            let channel_id = match &id {
+                signal::ChannelId::User(user) => ChannelId::User(user.to_string()),
+                signal::ChannelId::Group(group) => {
+                    ChannelId::Group(group.to_owned().into())
+                }
+            };
+            let quote_msg = match &message.quote {
+                None => None,
+                Some(q) => {
+                    let mut attachments = Vector::new();
+                    for attachment in &q.attachments {
+                        attachments.push_back(Attachment {
+                            id: attachment.id.to_owned(),
+                            content_type: attachment.content_type.to_owned(),
+                            filename: attachment.filename.to_string_lossy().to_string(),
+                            size: 0,
+                        })
+                    }
+                    Some(Box::new(Message {
+                        from_id: q.from_id.to_string(),
+                        message: q.message.to_owned(),
+                        quote: None,
+                        attachments,
+                        reactions: Default::default(),
+                    }))
+                }
+            };
+            let mut attachments = Vector::new();
+            for attachment in &message.attachments {
+                attachments.push_back(Attachment {
+                    id: attachment.id.to_owned(),
+                    content_type: attachment.content_type.to_owned(),
+                    filename: attachment.filename.to_string_lossy().to_string(),
+                    size: 0,
+                })
+            }
+            let message = Message {
+                from_id: message.from_id.to_string(),
+                message: message.message.to_owned(),
+                quote: quote_msg,
+                attachments,
+                reactions: Default::default(),
+            };
+            let incoming_msg = IncomingMsg {
+                id: channel_id,
+                name: name.to_string(),
+                message,
+            };
+            self.event_sink
+                .submit_command(command::SET_INCOMING_MSG, incoming_msg, Target::Auto)
+                .context("send Direct/group message by us from a different device")?;
+        Ok(())
+    }
 }
+
+

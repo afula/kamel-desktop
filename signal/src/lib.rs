@@ -148,16 +148,16 @@ impl Channel {
     }
 
     fn serialize_msgs<S>(messages: &Vec<Message>, ser: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::ser::Serializer,
+    where
+        S: serde::ser::Serializer,
     {
         // the messages StatefulList becomes the vec that was messages.items
         messages.serialize(ser)
     }
 
     fn deserialize_msgs<'de, D>(deserializer: D) -> Result<Vec<Message>, D::Error>
-        where
-            D: serde::de::Deserializer<'de>,
+    where
+        D: serde::de::Deserializer<'de>,
     {
         let tmp: Vec<Message> = serde::de::Deserialize::deserialize(deserializer)?;
         Ok(tmp)
@@ -667,8 +667,9 @@ impl AppData {
         &mut self,
         master_key: GroupMasterKeyBytes,
         revision: u32,
-    ) -> anyhow::Result<ChannelId> {
+    ) -> anyhow::Result<(ChannelId, String)> {
         let id = ChannelId::from_master_key_bytes(master_key)?;
+        let mut channel_name = String::new();
 
         if let Some(channel) = self.channels.get_mut(&id) {
             let is_stale = match channel.group_data.as_ref() {
@@ -694,9 +695,9 @@ impl AppData {
                         .copied()
                         .zip(profile_keys.into_iter()),
                 )
-                    .await;
-
+                .await;
                 let channel = self.channels.get_mut(&id).unwrap();
+                channel_name = name.to_owned();
                 channel.name = name;
                 channel.group_data = Some(group_data);
             }
@@ -719,8 +720,8 @@ impl AppData {
                     .copied()
                     .zip(profile_keys.into_iter()),
             )
-                .await;
-
+            .await;
+            channel_name = name.to_owned();
             self.channels.insert(
                 id,
                 Channel {
@@ -732,7 +733,7 @@ impl AppData {
                 },
             );
         }
-        Ok(id)
+        Ok((id, channel_name))
     }
 
     pub async fn ensure_user_is_known(

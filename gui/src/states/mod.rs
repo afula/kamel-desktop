@@ -58,7 +58,7 @@ pub struct SignalState {
     pub theme: Theme,
 }
 
-#[derive(Debug, Data,  Clone,Eq,PartialEq, Hash)]
+#[derive(Debug, Data, Clone, Eq, PartialEq, Hash)]
 pub enum ChannelId {
     User(String),
     Group(GroupIdentifierBytes),
@@ -99,4 +99,11 @@ pub struct Attachment {
     pub content_type: String,
     pub filename: String,
     pub size: u64,
+}
+
+#[derive(Debug, Data, Lens, Clone)]
+pub struct IncomingMsg {
+    pub id: ChannelId,
+    pub name: String,
+    pub message: Message,
 }

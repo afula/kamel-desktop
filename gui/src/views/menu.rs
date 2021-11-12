@@ -35,15 +35,15 @@ fn edit_menu<T: Data>() -> Menu<T> {
             MenuItem::new(
                 LocalizedString::new("menu-item-select-all").with_placeholder("Select All"),
             )
-                // .on_activate(|ctx, _, _| ctx.submit_command(command::SELECT_ALL))
-                .hotkey(SysMods::Cmd, "a"),
+            // .on_activate(|ctx, _, _| ctx.submit_command(command::SELECT_ALL))
+            .hotkey(SysMods::Cmd, "a"),
         )
         .entry(
             MenuItem::new(
                 LocalizedString::new("menu-item-deselect-all").with_placeholder("Deselect All"),
             )
-                // .on_activate(|ctx, _, _| ctx.submit_command(command::DESELECT_ALL))
-                .hotkey(SysMods::AltCmd, "A"),
+            // .on_activate(|ctx, _, _| ctx.submit_command(command::DESELECT_ALL))
+            .hotkey(SysMods::AltCmd, "A"),
         )
 }
 
@@ -53,22 +53,22 @@ fn view_menu<T: Data>() -> Menu<T> {
             MenuItem::new(
                 LocalizedString::new("menu-item-increase-zoom").with_placeholder("Zoom In"),
             )
-                // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_IN))
-                .hotkey(SysMods::Cmd, "+"),
+            // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_IN))
+            .hotkey(SysMods::Cmd, "+"),
         )
         .entry(
             MenuItem::new(
                 LocalizedString::new("menu-item-decrease-zoom").with_placeholder("Zoom Out"),
             )
-                // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_OUT))
-                .hotkey(SysMods::Cmd, "-"),
+            // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_OUT))
+            .hotkey(SysMods::Cmd, "-"),
         )
         .entry(
             MenuItem::new(
                 LocalizedString::new("menu-item-reset-zoom").with_placeholder("Reset Zoom"),
             )
-                // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_DEFAULT))
-                .hotkey(SysMods::Cmd, "0"),
+            // .on_activate(|ctx, _, _| ctx.submit_command(command::ZOOM_DEFAULT))
+            .hotkey(SysMods::Cmd, "0"),
         )
 }
 /*fn file_menu(data: &SignalState) -> Menu<SignalState> {

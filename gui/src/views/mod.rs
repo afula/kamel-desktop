@@ -29,6 +29,7 @@ use druid::im::Vector;
 use druid::widget::{Either, Image, Spinner, TextBox};
 use message::make_message_list;
 
+use signal::ChannelId;
 use std::{
     sync::{mpsc, mpsc::Sender, Arc},
     thread,
@@ -95,22 +96,22 @@ pub fn make_ui() -> impl Widget<SignalState> {
                 })
             // .controller(ChannelController)
         })
-            .with_spacing(10.),
+        .with_spacing(10.),
     )
-        .vertical()
-        // .fix_height(300.0)
-        // .expand_height()
-        .lens(lens::Identity.map(
-            // Expose shared data with children data
-            |data: &SignalState| {
-                data.data
-                    .channels
-                    .iter()
-                    .map(|(_, channel)| channel.to_owned())
-                    .collect::<Vector<Channel>>()
-            },
-            |_, _| {},
-        ));
+    .vertical()
+    // .fix_height(300.0)
+    // .expand_height()
+    .lens(lens::Identity.map(
+        // Expose shared data with children data
+        |data: &SignalState| {
+            data.data
+                .channels
+                .iter()
+                .map(|(_, channel)| channel.to_owned())
+                .collect::<Vector<Channel>>()
+        },
+        |_, _| {},
+    ));
 
     /*    let signal = Label::new(format!("#{}", "Signal"))
         // .align_vertical(UnitPoint::LEFT)
@@ -171,7 +172,7 @@ pub fn make_ui() -> impl Widget<SignalState> {
         Spinner::new(),
         make_message_list(),
     )
-        .lens(SignalState::data);
+    .lens(SignalState::data);
 
     let messages = Flex::column().with_child(Either::new(
         |data: &SignalState, _| data.data.current_channel.is_some(),
@@ -207,22 +208,45 @@ pub fn make_ui() -> impl Widget<SignalState> {
     ThemeScope::new(split)
 }
 #[derive(Default)]
-struct ImportDelegate;
+pub struct MainDelegate;
 
-impl AppDelegate<SignalData> for ImportDelegate {
+impl AppDelegate<SignalState> for MainDelegate {
     fn command(
         &mut self,
         _ctx: &mut DelegateCtx,
         _target: Target,
         cmd: &Command,
-        data: &mut SignalData,
+        state: &mut SignalState,
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(commands::OPEN_FILE) {
             return Handled::Yes;
         }
         if let Some(channel_id) = cmd.get(command::SET_CURRENT_CHANNEL) {
-            data.current_channel.replace(channel_id.to_owned());
+            state.data.current_channel.replace(channel_id.to_owned());
+            return Handled::Yes;
+        }
+        if let Some(incoming_msg) = cmd.get(command::SET_INCOMING_MSG) {
+            let channel_id = &incoming_msg.id;
+            let channel = state.data.channels.get_mut(channel_id);
+            match channel {
+                Some(channel) => {
+                    channel.messages.push_back(incoming_msg.message.to_owned());
+                }
+                None => {
+                    state.data.channels.insert(
+                        channel_id.to_owned(),
+                        Channel {
+                            id: channel_id.to_owned(),
+                            name: incoming_msg.name.to_owned(),
+                            group_data: None,
+                            messages: Vector::from(vec![incoming_msg.message.to_owned()]),
+                            unread_messages: 0,
+                        },
+                    );
+                }
+            }
+
             return Handled::Yes;
         }
         Handled::No

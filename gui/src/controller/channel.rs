@@ -1,12 +1,12 @@
 use std::thread::{self, JoinHandle};
 
 use crate::controller::command;
+use crate::states::SignalData;
 use druid::{
     im::Vector,
     widget::{prelude::*, Controller},
     Code, ExtEventSink, InternalLifeCycle, KbKey, WindowHandle,
 };
-use crate::states::SignalData;
 
 pub struct ChannelController;
 
@@ -132,8 +132,8 @@ impl ChannelController {
 }
 
 impl<W> Controller<SignalData, W> for ChannelController
-    where
-        W: Widget<SignalData>,
+where
+    W: Widget<SignalData>,
 {
     fn event(
         &mut self,
