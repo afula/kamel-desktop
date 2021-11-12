@@ -132,8 +132,8 @@ impl ChannelController {
 }
 
 impl<W> Controller<SignalData, W> for ChannelController
-where
-    W: Widget<SignalData>,
+    where
+        W: Widget<SignalData>,
 {
     fn event(
         &mut self,

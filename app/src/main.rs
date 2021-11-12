@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio_stream::StreamExt;
+use app::signal::processor::SignalProcessor;
 
 use signal::storage::Storage;
 use signal::util::{LazyRegex, ATTACHMENT_REGEX, URL_REGEX};

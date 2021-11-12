@@ -6,8 +6,8 @@ use druid::{Env, Event, EventCtx, Widget};
 pub struct MessageInputController;
 
 impl<W> Controller<SignalState, W> for MessageInputController
-where
-    W: Widget<SignalState>,
+    where
+        W: Widget<SignalState>,
 {
     fn event(
         &mut self,

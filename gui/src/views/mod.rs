@@ -95,22 +95,22 @@ pub fn make_ui() -> impl Widget<SignalState> {
                 })
             // .controller(ChannelController)
         })
-        .with_spacing(10.),
+            .with_spacing(10.),
     )
-    .vertical()
-    // .fix_height(300.0)
-    // .expand_height()
-    .lens(lens::Identity.map(
-        // Expose shared data with children data
-        |data: &SignalState| {
-            data.data
-                .channels
-                .iter()
-                .map(|(_, channel)| channel.to_owned())
-                .collect::<Vector<Channel>>()
-        },
-        |_, _| {},
-    ));
+        .vertical()
+        // .fix_height(300.0)
+        // .expand_height()
+        .lens(lens::Identity.map(
+            // Expose shared data with children data
+            |data: &SignalState| {
+                data.data
+                    .channels
+                    .iter()
+                    .map(|(_, channel)| channel.to_owned())
+                    .collect::<Vector<Channel>>()
+            },
+            |_, _| {},
+        ));
 
     /*    let signal = Label::new(format!("#{}", "Signal"))
         // .align_vertical(UnitPoint::LEFT)
@@ -171,7 +171,7 @@ pub fn make_ui() -> impl Widget<SignalState> {
         Spinner::new(),
         make_message_list(),
     )
-    .lens(SignalState::data);
+        .lens(SignalState::data);
 
     let messages = Flex::column().with_child(Either::new(
         |data: &SignalState, _| data.data.current_channel.is_some(),

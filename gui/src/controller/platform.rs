@@ -135,8 +135,8 @@ impl PlatformController {
 }
 
 impl<W> Controller<SignalData, W> for PlatformController
-where
-    W: Widget<SignalData>,
+    where
+        W: Widget<SignalData>,
 {
     fn event(
         &mut self,

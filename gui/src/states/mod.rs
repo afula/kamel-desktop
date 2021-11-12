@@ -10,6 +10,7 @@ use signal::signal::{GROUP_IDENTIFIER_LEN, GROUP_MASTER_KEY_LEN};
 // use signal::AppData as SignalAppData;
 
 pub static mut OWNER: String = String::new();
+
 #[derive(Debug, Data, Clone, PartialEq, Eq)]
 pub enum Platform {
     Signal,

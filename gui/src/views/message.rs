@@ -44,27 +44,27 @@ pub fn make_message_list() -> impl Widget<SignalData> {
                     }),
             )
         })
-        .with_spacing(10.),
+            .with_spacing(10.),
     )
-    .vertical()
-    // .fix_height(300.0)
-    // .expand_height()
-    .lens(lens::Identity.map(
-        // Expose shared data with children data
-        |data: &SignalData| {
-            // owner = data.user_id;
-            match data.current_channel.as_ref() {
-                Some(channel_id) => {
-                    if let Some(channel) = data.channels.get(&channel_id) {
-                        channel.messages.clone()
-                    } else {
-                        Vector::new()
+        .vertical()
+        // .fix_height(300.0)
+        // .expand_height()
+        .lens(lens::Identity.map(
+            // Expose shared data with children data
+            |data: &SignalData| {
+                // owner = data.user_id;
+                match data.current_channel.as_ref() {
+                    Some(channel_id) => {
+                        if let Some(channel) = data.channels.get(&channel_id) {
+                            channel.messages.clone()
+                        } else {
+                            Vector::new()
+                        }
                     }
+                    None => Vector::new(),
                 }
-                None => Vector::new(),
-            }
-        },
-        |_, _| {},
-    ));
+            },
+            |_, _| {},
+        ));
     message_list
 }

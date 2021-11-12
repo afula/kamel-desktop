@@ -148,16 +148,16 @@ impl Channel {
     }
 
     fn serialize_msgs<S>(messages: &Vec<Message>, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
+        where
+            S: serde::ser::Serializer,
     {
         // the messages StatefulList becomes the vec that was messages.items
         messages.serialize(ser)
     }
 
     fn deserialize_msgs<'de, D>(deserializer: D) -> Result<Vec<Message>, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
+        where
+            D: serde::de::Deserializer<'de>,
     {
         let tmp: Vec<Message> = serde::de::Deserialize::deserialize(deserializer)?;
         Ok(tmp)
@@ -694,7 +694,7 @@ impl AppData {
                         .copied()
                         .zip(profile_keys.into_iter()),
                 )
-                .await;
+                    .await;
 
                 let channel = self.channels.get_mut(&id).unwrap();
                 channel.name = name;
@@ -719,7 +719,7 @@ impl AppData {
                     .copied()
                     .zip(profile_keys.into_iter()),
             )
-            .await;
+                .await;
 
             self.channels.insert(
                 id,
