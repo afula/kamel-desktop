@@ -14,12 +14,13 @@ where
         child: &mut W,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut SignalState,
+        state: &mut SignalState,
         env: &Env,
     ) {
         match event {
             Event::KeyDown(key) if key.key == Key::Enter && !key.mods.shift() => {
-                if !data.data.input.is_empty() {
+                if !state.data.input.is_empty() {
+                    println!("current input: {:?}",&state.data.input)
                     /*                    // TODO: do this based on current cursor position
                     let count = data.editing_message.match_indices("```").count();
                     if count % 2 == 0 {
@@ -44,6 +45,6 @@ where
 
             _ => (),
         }
-        child.event(ctx, event, data, env);
+        child.event(ctx, event, state, env);
     }
 }

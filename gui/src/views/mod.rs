@@ -174,11 +174,11 @@ pub fn make_ui() -> impl Widget<SignalState> {
     )
     .lens(SignalState::data);
 
-    let messages = Flex::column().with_child(Either::new(
+    let messages = Flex::column().with_flex_child(Either::new(
         |data: &SignalState, _| data.data.current_channel.is_some(),
         message_list,
         Image::new(ImageBuf::empty()),
-    ));
+    ),1.0);
     // .controller(MessageScrollController)
     // .expand_height();
 
@@ -189,13 +189,15 @@ pub fn make_ui() -> impl Widget<SignalState> {
         .lens(SignalState::data.then(SignalData::input))
         .expand_width()
         .controller(MessageInputController)
+        .border(Color::grey(0.6), 2.0)
+        .rounded(5.0)
         .scroll()
         .vertical();
 
     let main = Flex::column()
         .main_axis_alignment(MainAxisAlignment::End)
         .with_flex_child(messages, 1.0)
-        .with_child(textinput)
+        .with_flex_child(textinput,1.0)
         .background(style::BACKGROUND_LIGHT);
 
     let split = Split::columns(sidebar, main)
