@@ -11,8 +11,9 @@ use druid::{
     TextAlignment, Widget, WidgetExt, WindowDesc,
 };
 use futures::{AsyncReadExt, AsyncWriteExt};
-use gui::states::{SignalState, OWNER};
-use gui::views::{make_ui, MainDelegate};
+use gui::delegate::application::ApplicationDelegate;
+use gui::states::{OutgoingMsg, SignalState, OWNER};
+use gui::views::make_ui;
 use kamel::signal::processor::SignalProcessor;
 use log::{error, info};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -63,26 +64,38 @@ async fn main() -> anyhow::Result<()> {
     );
     let loaded_data =
         AppData::try_new(config, PresageManager::new(signal_manager.clone()), storage)?;
-    use std::sync::Arc;
+    let user_id = loaded_data.user_id.to_owned().to_string();
+    unsafe {
+        OWNER = user_id.to_owned();
+    }
+
     let mut processor = SignalProcessor {
         data: loaded_data,
         event_sink,
     };
 
-    let signal_state = SignalState::default();
+    let mut signal_state = SignalState::default();
     use tokio::runtime::Runtime;
 
     let rt = Runtime::new().unwrap();
 
+    let (outgoing_msg_sender, outgoing_msg_receiver) =
+        tokio::sync::mpsc::channel::<OutgoingMsg>(1024);
+
+    signal_state.data.outgoing_msg_sender = Some(outgoing_msg_sender);
+    signal_state.data.user_id = user_id;
+
     std::thread::spawn(move || {
         tokio::task::LocalSet::new().block_on(&rt, async {
-            processor.process(signal_manager).await;
+            processor
+                .process(signal_manager, outgoing_msg_receiver)
+                .await;
         });
     });
 
     launcher
         .log_to_console()
-        .delegate(MainDelegate)
+        .delegate(ApplicationDelegate)
         .launch(signal_state)
         .expect("launch failed");
     Ok(())

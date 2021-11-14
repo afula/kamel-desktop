@@ -1630,9 +1630,11 @@ version = "0.1.0"
 dependencies = [
  "async-std",
  "druid",
+ "log",
  "matrix",
  "serde",
  "signal",
+ "tokio",
  "uuid",
 ]
 

@@ -15,7 +15,7 @@ use druid::{
     },
     AppDelegate, AppLauncher, Color, Command, Data, DelegateCtx, Env, Event, EventCtx,
     ExtEventSink, FileDialogOptions, FileSpec, Handled, ImageBuf, Insets, Lens, LensExt,
-    RenderContext, Selector, Target, Widget, WidgetExt, WindowDesc,
+    RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt, WindowDesc,
 };
 
 use crate::controller::command;
@@ -26,7 +26,7 @@ use crate::delegate::main_menu::MainMenuDelegate;
 use crate::states::{AppState, Channel, SignalData, SignalState};
 use crate::views::{menu::make_menu, theme::ThemeScope};
 use druid::im::Vector;
-use druid::widget::{Either, Image, Spinner, TextBox};
+use druid::widget::{Either, FlexParams, Image, Spinner, TextBox};
 use message::make_message_list;
 
 use signal::ChannelId;
@@ -35,46 +35,6 @@ use std::{
     thread,
     time::Duration,
 };
-
-/*fn main_view() {
-    let window = WindowDesc::new(make_ui())
-        .title("Kamel")
-        .with_min_size((800., 600.))
-        .menu(make_menu);
-
-    let launcher = AppLauncher::with_window(window)
-        .delegate(MainMenuDelegate::default())
-        .delegate(ImportDelegate::default());
-
-    launcher
-        .log_to_console()
-        .launch(SignalData {
-            channels: Default::default(),
-            names: Default::default(),
-            input: "".to_string(),
-            input_cursor: 0,
-            input_cursor_chars: 0,
-            current_channel: None,
-            current_platform: None,
-            config: Config {
-                data_path: Default::default(),
-                signal_db_path: Default::default(),
-                first_name_only: false,
-                user: User {
-                    name: "".to_string(),
-                    phone_number: "".to_string(),
-                },
-            },
-            signal_manager: None,
-            storage: None,
-            user_id: Default::default(),
-            should_quit: false,
-            url_regex: None,
-            attachment_regex: None,
-            display_help: false,
-        })
-        .expect("launch failed");
-}*/
 pub fn make_ui() -> impl Widget<SignalState> {
     let channels = Scroll::new(
         List::new(|| {
@@ -174,30 +134,49 @@ pub fn make_ui() -> impl Widget<SignalState> {
     )
     .lens(SignalState::data);
 
-    let messages = Flex::column().with_flex_child(Either::new(
-        |data: &SignalState, _| data.data.current_channel.is_some(),
-        message_list,
-        Image::new(ImageBuf::empty()),
-    ),1.0);
-    // .controller(MessageScrollController)
-    // .expand_height();
-
-    // .scroll()
-
     let textinput = TextBox::multiline()
         .with_placeholder("Send a message!")
         .lens(SignalState::data.then(SignalData::input))
         .expand_width()
         .controller(MessageInputController)
-        .border(Color::grey(0.6), 2.0)
-        .rounded(5.0)
+        .border(Color::grey(0.6), 1.5)
+        .rounded(10.0)
+        .padding(Insets::new(7.0, 0.0, 7.0, 9.0))
         .scroll()
         .vertical();
 
+    let user_name = Label::new(format!("Messaging with #{}", "User"))
+        .with_line_break_mode(LineBreaking::Clip)
+        .with_text_size(style::TEXT_SIZE_SMALL)
+        .align_vertical(UnitPoint::LEFT)
+        .padding(10.0)
+        .expand()
+        .height(35.0)
+        .background(Color::rgb(0.7, 0.7, 0.7));
+
+    let user = Flex::row()
+        // .main_axis_alignment(MainAxisAlignment::Start)
+        .with_flex_child(user_name, 1.0)
+        // .expand_height()
+        .background(style::BACKGROUND_LIGHT);
+
+    let main_list = Flex::column()
+        // .main_axis_alignment(MainAxisAlignment::SpaceAround)
+        .with_child(user)
+        .with_flex_child(message_list.expand(), 1.0)
+        .with_child(textinput)
+        .expand_height()
+        .background(style::BACKGROUND_LIGHT);
+
     let main = Flex::column()
-        .main_axis_alignment(MainAxisAlignment::End)
-        .with_flex_child(messages, 1.0)
-        .with_flex_child(textinput,1.0)
+        .with_flex_child(
+            Either::new(
+                |data: &SignalState, _| data.data.current_channel.is_some(),
+                main_list,
+                Image::new(ImageBuf::empty()),
+            ),
+            1.0,
+        )
         .background(style::BACKGROUND_LIGHT);
 
     let split = Split::columns(sidebar, main)
@@ -208,49 +187,4 @@ pub fn make_ui() -> impl Widget<SignalState> {
         .solid_bar(true);
     // split
     ThemeScope::new(split)
-}
-#[derive(Default)]
-pub struct MainDelegate;
-
-impl AppDelegate<SignalState> for MainDelegate {
-    fn command(
-        &mut self,
-        _ctx: &mut DelegateCtx,
-        _target: Target,
-        cmd: &Command,
-        state: &mut SignalState,
-        _env: &Env,
-    ) -> Handled {
-        if let Some(file_info) = cmd.get(commands::OPEN_FILE) {
-            return Handled::Yes;
-        }
-        if let Some(channel_id) = cmd.get(command::SET_CURRENT_CHANNEL) {
-            state.data.current_channel.replace(channel_id.to_owned());
-            return Handled::Yes;
-        }
-        if let Some(incoming_msg) = cmd.get(command::SET_INCOMING_MSG) {
-            let channel_id = &incoming_msg.id;
-            let channel = state.data.channels.get_mut(channel_id);
-            match channel {
-                Some(channel) => {
-                    channel.messages.push_back(incoming_msg.message.to_owned());
-                }
-                None => {
-                    state.data.channels.insert(
-                        channel_id.to_owned(),
-                        Channel {
-                            id: channel_id.to_owned(),
-                            name: incoming_msg.name.to_owned(),
-                            group_data: None,
-                            messages: Vector::from(vec![incoming_msg.message.to_owned()]),
-                            unread_messages: 0,
-                        },
-                    );
-                }
-            }
-
-            return Handled::Yes;
-        }
-        Handled::No
-    }
 }

@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 presage = { path = "../presage" }
 druid = {git = "https://github.com/linebender/druid.git" , features =["im"] }
-tokio = { version = "1.5.0", default-features = false, features = ["rt-multi-thread", "macros", "net", "time"] }
+tokio = { version = "1.13.0", default-features = false, features = ["rt-multi-thread", "macros", "net", "time"] }
 tokio-stream = "0.1.5"
 signal = {path = "../signal"}
 uuid = {version = "0.8.2", features = ["serde"]}

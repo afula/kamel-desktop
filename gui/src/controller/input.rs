@@ -1,4 +1,4 @@
-use crate::states::SignalState;
+use crate::states::{Channel, Message, OutgoingMsg, SignalState, OWNER};
 use druid::keyboard_types::Key;
 use druid::widget::Controller;
 use druid::{Env, Event, EventCtx, Widget};
@@ -20,29 +20,57 @@ where
         match event {
             Event::KeyDown(key) if key.key == Key::Enter && !key.mods.shift() => {
                 if !state.data.input.is_empty() {
-                    println!("current input: {:?}",&state.data.input)
-                    /*                    // TODO: do this based on current cursor position
-                    let count = data.editing_message.match_indices("```").count();
-                    if count % 2 == 0 {
-                        let formatted = markdown::parse_markdown(&*data.editing_message);
-                        let formatted = markdown::markdown_to_html(formatted);
-                        match data.txs.action_tx.try_send(UserAction::SendMessage(
-                            data.current_channel.clone(),
-                            data.editing_message.clone(),
-                            Arc::new(formatted),
-                        )) {
-                            Ok(_) => (),
-                            Err(TrySendError::Full(_)) => panic!("idk what to do here :("),
-                            Err(TrySendError::Closed(_)) => panic!("oh no"),
+                    println!("current input: {:?}", &state.data.input);
+                    let channel_id = state.data.current_channel.as_ref().unwrap();
+                    let message = Message {
+                        from_id: state.data.user_id.to_owned(),
+                        message: Some(state.data.input.to_owned()),
+                        arrived_at: 0,
+                        quote: None,
+                        attachments: Default::default(),
+                        reactions: Default::default(),
+                    };
+                    let outgoing_msg = OutgoingMsg {
+                        channel_id: channel_id.to_owned(),
+                        message: message.to_owned(),
+                    };
+                    //send to message processor
+                    state
+                        .data
+                        .outgoing_msg_sender
+                        .as_ref()
+                        .unwrap()
+                        .try_send(outgoing_msg)
+                        .map_err(|e| e); //TODO
+                                         //put back in the gui relative channel message container
+                    let channel = state.data.channels.get_mut(channel_id);
+                    match channel {
+                        Some(channel) => {
+                            channel.messages.push_back(message);
+                            unsafe {
+                                println!("gui state: {:?} --- {:?}", &channel.messages, OWNER);
+                            }
                         }
-                        data.editing_message = Arc::new(String::new());
-                        ctx.set_handled();
-                    }*/
+                        None => {
+                            log::error!("try to send message to a unknown channel");
+                            // state.data.channels.insert(
+                            //     channel_id.to_owned(),
+                            //     Channel {
+                            //         id: channel_id.to_owned(),
+                            //         name: incoming_msg.name.to_owned(),
+                            //         group_data: None,
+                            //         messages: Vector::from(vec![incoming_msg.message.to_owned()]),
+                            //         unread_messages: 0,
+                            //     },
+                            // );
+                        }
+                    }
+                    state.data.input.clear();
+                    ctx.set_handled();
                 } else {
                     ctx.set_handled();
                 }
             }
-
             _ => (),
         }
         child.event(ctx, event, state, env);

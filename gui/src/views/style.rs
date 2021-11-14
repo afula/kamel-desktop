@@ -31,6 +31,7 @@ pub const MENU_BUTTON_FG_INACTIVE: Key<Color> = Key::new("app.menu-fg-inactive")
 pub const UI_FONT_MEDIUM: Key<FontDescriptor> = Key::new("app.ui-font-medium");
 pub const UI_FONT_MONO: Key<FontDescriptor> = Key::new("app.ui-font-mono");
 pub const TEXT_SIZE_SMALL: Key<f64> = Key::new("app.text-size-small");
+pub const TEXT_SIZE_MEDIUM: Key<f64> = Key::new("app.text-size-medium");
 
 pub const ICON_COLOR: Key<Color> = Key::new("app.icon-color");
 pub const ICON_SIZE_SMALL: Size = Size::new(14.0, 14.0);
@@ -96,6 +97,7 @@ pub fn setup(env: &mut Env, state: &SignalState) {
         FontDescriptor::new(FontFamily::MONOSPACE).with_size(13.0),
     );
     env.set(TEXT_SIZE_SMALL, 11.0);
+    env.set(TEXT_SIZE_MEDIUM, 13.0);
     env.set(TEXT_SIZE_NORMAL, 13.0);
     env.set(TEXT_SIZE_LARGE, 16.0);
 

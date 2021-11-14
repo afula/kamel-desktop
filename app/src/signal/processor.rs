@@ -3,7 +3,7 @@ use anyhow::Context;
 use druid::im::Vector;
 use druid::{Data, ExtEventSink, Lens, Target};
 use gui::controller::command;
-use gui::states::IncomingMsg;
+use gui::states::{IncomingMsg, OutgoingMsg};
 use gui::views::style::Theme;
 use log::{error, info};
 use presage::prelude::proto::AttachmentPointer;
@@ -17,9 +17,11 @@ use presage::prelude::{
     AttachmentSpec, Content, GroupMasterKey, GroupSecretParams, ServiceAddress,
 };
 use signal::attachment::save_attachment;
+use signal::util::utc_now_timestamp_msec;
 use signal::{signal::Manager, AppData, ChannelId, Event, Message};
+use std::path::Path;
 use std::str::FromStr;
-use tokio::time::sleep;
+use tokio::{select, sync::mpsc::Receiver, time::sleep};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -34,28 +36,113 @@ pub struct SignalProcessor {
     pub event_sink: ExtEventSink,
 }
 impl SignalProcessor {
-    pub async fn process(&mut self, signal_manager: Manager) -> anyhow::Result<()> {
+    pub async fn process(
+        mut self,
+        signal_manager: Manager,
+        mut outgoing_msg_receiver: Receiver<OutgoingMsg>,
+    ) -> anyhow::Result<()> {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Event>(1024);
+        let inner_tx = tx.clone();
+        let signal_manager_incoming = signal_manager.clone();
+        let signal_manager_outgoing = signal_manager.clone();
 
-        /*    tokio::spawn({
-            let tx = tx.clone();
-            async move {
-                let mut reader = EventStream::new().fuse();
-                while let Some(event) = reader.next().await {
-                    match event {
-                        Ok(CEvent::Key(key)) => tx.send(Event::Input(key)).await.unwrap(),
-                        Ok(CEvent::Resize(cols, rows)) => {
-                            tx.send(Event::Resize { cols, rows }).await.unwrap()
+        /*        tokio::task::spawn_local(async move {
+            while let Some(msg) = outgoing_msg_receiver.recv().await {
+                let channel_id = match msg.id {
+                    gui::states::ChannelId::User(user) => {
+                        let uuid = Uuid::from_str(user.as_ref()).unwrap(); //TODO
+                        ChannelId::User(uuid)
+                    }
+                    gui::states::ChannelId::Group(group) => ChannelId::Group(group.into()),
+                };
+                let channel = &self.data.channels.get(&channel_id).unwrap(); //TODO
+                let quote = msg.message.quote.map(|q| Quote {
+                    id: Some(q.arrived_at),
+                    author_uuid: Some(q.from_id),
+                    text: q.message,
+                    ..Default::default()
+                });
+                let timestamp = utc_now_timestamp_msec();
+
+                let mut data_message = DataMessage {
+                    body: msg.message.message,
+                    timestamp: Some(timestamp),
+                    quote,
+                    ..Default::default()
+                };
+                let mut attachments = Vec::with_capacity(msg.message.attachments.len());
+                for attachment in msg.message.attachments {
+                    let path = Path::new(&attachment.filename);
+                    let contents = std::fs::read(path).ok()?;
+
+                    let content_type = mime_guess::from_path(path)
+                        .first()
+                        .map(|mime| mime.essence_str().to_string())
+                        .unwrap_or_default();
+                    let spec = AttachmentSpec {
+                        content_type,
+                        length: contents.len(),
+                        file_name: Path::new(path)
+                            .file_name()
+                            .map(|f| f.to_string_lossy().into()),
+                        preview: None,
+                        voice_note: None,
+                        borderless: None,
+                        width: None,
+                        height: None,
+                        caption: None,
+                        blur_hash: None,
+                    };
+                    attachments.push((spec, contents))
+                }
+                match channel_id {
+                    ChannelId::User(uuid) => {
+                        let manager = signal_manager_incoming.clone();
+                        tokio::task::spawn_local(async move {
+                            upload_attachments(&manager, attachments, &mut data_message).await;
+
+                            let body = ContentBody::DataMessage(data_message);
+                            if let Err(e) = manager.send_message(uuid, body, timestamp).await {
+                                // TODO: Proper error handling
+                                log::error!("Failed to send message to {}: {}", uuid, e);
+                            }
+                        });
+                    }
+                    ChannelId::Group(_) => {
+                        if let Some(group_data) = channel.group_data.as_ref() {
+                            let manager = self.manager.clone();
+                            let self_uuid = self.user_id();
+
+                            data_message.group_v2 = Some(GroupContextV2 {
+                                master_key: Some(group_data.master_key_bytes.to_vec()),
+                                revision: Some(group_data.revision),
+                                ..Default::default()
+                            });
+
+                            let recipients = group_data.members.clone().into_iter();
+
+                            tokio::task::spawn_local(async move {
+                                upload_attachments(&manager, attachments, &mut data_message).await;
+
+                                let recipients =
+                                    recipients.filter(|uuid| *uuid != self_uuid).map(Into::into);
+                                if let Err(e) = manager
+                                    .send_message_to_group(recipients, data_message, timestamp)
+                                    .await
+                                {
+                                    // TODO: Proper error handling
+                                    log::error!("Failed to send group message: {}", e);
+                                }
+                            });
+                        } else {
+                            error!("cannot send to broken channel without group data");
                         }
-                        Ok(CEvent::Mouse(button)) => tx.send(Event::Click(button)).await.unwrap(),
-                        _ => (),
                     }
                 }
             }
+            Ok(()) as std::io::Result<()>
         });*/
 
-        let inner_tx = tx.clone();
-        let signal_manager_clone = signal_manager.clone();
         tokio::task::spawn_local(async move {
             loop {
                 let messages = if !is_online().await {
@@ -95,33 +182,134 @@ impl SignalProcessor {
         let mut res = Ok(()); // result on quit
 
         loop {
-            sleep(std::time::Duration::from_secs(1)).await;
-            println!("1 s have elapsed");
-            match rx.recv().await {
-                Some(Event::Message(content)) => {
-                    if let Err(e) = self.on_message(content, &signal_manager_clone).await {
-                        error!("failed on incoming message: {}", e);
+            select! {
+                msg = outgoing_msg_receiver.recv() => {
+                    match msg {
+                        Some(msg) =>{
+                           let channel_id = match msg.channel_id {
+                                gui::states::ChannelId::User(user) => {
+                                    let uuid = Uuid::from_str(user.as_ref()).unwrap(); //TODO
+                                    ChannelId::User(uuid)
+                                }
+                                gui::states::ChannelId::Group(group) => ChannelId::Group(group.into()),
+                            };
+                            let channel = &self.data.channels.get(&channel_id).unwrap(); //TODO
+                            let quote = msg.message.quote.map(|q| Quote {
+                                id: Some(q.arrived_at),
+                                author_uuid: Some(q.from_id),
+                                text: q.message,
+                                ..Default::default()
+                            });
+                            let timestamp = utc_now_timestamp_msec();
+
+                            let mut data_message = DataMessage {
+                                body: msg.message.message,
+                                timestamp: Some(timestamp),
+                                quote,
+                                ..Default::default()
+                            };
+                            let mut attachments = Vec::with_capacity(msg.message.attachments.len());
+                            for attachment in msg.message.attachments {
+                                let path = Path::new(&attachment.filename);
+                                let contents = std::fs::read(path).context(format!("failed to read the file: {:?}",&attachment.filename))?;
+
+                                let content_type = mime_guess::from_path(path)
+                                    .first()
+                                    .map(|mime| mime.essence_str().to_string())
+                                    .unwrap_or_default();
+                                let spec = AttachmentSpec {
+                                    content_type,
+                                    length: contents.len(),
+                                    file_name: Path::new(path)
+                                        .file_name()
+                                        .map(|f| f.to_string_lossy().into()),
+                                    preview: None,
+                                    voice_note: None,
+                                    borderless: None,
+                                    width: None,
+                                    height: None,
+                                    caption: None,
+                                    blur_hash: None,
+                                };
+                                attachments.push((spec, contents))
+                            }
+                            match channel_id {
+                                ChannelId::User(uuid) => {
+                                    let manager = signal_manager_incoming.clone();
+                                    tokio::task::spawn_local(async move {
+                                        upload_attachments(&manager, attachments, &mut data_message).await;
+
+                                        let body = ContentBody::DataMessage(data_message);
+                                        if let Err(e) = manager.send_message(uuid, body, timestamp).await {
+                                            // TODO: Proper error handling
+                                            log::error!("Failed to send message to {}: {}", uuid, e);
+                                        }
+                                    });
+                                }
+                                ChannelId::Group(_) => {
+                                    if let Some(group_data) = channel.group_data.as_ref() {
+                                        let manager = signal_manager_incoming.clone();
+                                        let self_uuid = self.data.user_id;
+
+                                        data_message.group_v2 = Some(GroupContextV2 {
+                                            master_key: Some(group_data.master_key_bytes.to_vec()),
+                                            revision: Some(group_data.revision),
+                                            ..Default::default()
+                                        });
+
+                                        let recipients = group_data.members.clone().into_iter();
+
+                                        tokio::task::spawn_local(async move {
+                                            upload_attachments(&manager, attachments, &mut data_message).await;
+
+                                            let recipients =
+                                                recipients.filter(|uuid| *uuid != self_uuid).map(Into::into);
+                                            if let Err(e) = manager
+                                                .send_message_to_group(recipients, data_message, timestamp)
+                                                .await
+                                            {
+                                                // TODO: Proper error handling
+                                                log::error!("Failed to send group message: {}", e);
+                                            }
+                                        });
+                                    } else {
+                                        error!("cannot send to broken channel without group data");
+                                    }
+                                }
+                            }
+                        },
+                        None =>{}
                     }
-                    println!("processor state: {:?}", &self.data.channels);
                 }
-                Some(Event::Quit(e)) => {
-                    if let Some(e) = e {
-                        res = Err(e);
-                    };
-                    break;
+               event =  rx.recv() => {
+                match event {
+                    Some(Event::Message(content)) => {
+                        if let Err(e) = self
+                            .process_incoming_message(content, &signal_manager_incoming)
+                            .await
+                        {
+                            error!("failed on incoming message: {}", e);
+                        }
+                        // println!("processor state: {:?}", &self.data.channels);
+                    }
+                    Some(Event::Quit(e)) => {
+                        if let Some(e) = e {
+                            res = Err(e);
+                        };
+                        break;
+                    }
+                    None => {
+                        break;
+                    }
+                    _ => {}
                 }
-                None => {
-                    break;
-                }
-                _ => {}
+
             }
-            if self.data.should_quit {
-                break;
             }
         }
         res
     }
-    pub async fn on_message(
+    pub async fn process_incoming_message(
         &mut self,
         content: Content,
         signal_manager: &Manager,
@@ -434,6 +622,7 @@ impl SignalProcessor {
                 Some(Box::new(Message {
                     from_id: q.from_id.to_string(),
                     message: q.message.to_owned(),
+                    arrived_at: q.arrived_at,
                     quote: None,
                     attachments,
                     reactions: Default::default(),
@@ -452,6 +641,7 @@ impl SignalProcessor {
         let message = Message {
             from_id: message.from_id.to_string(),
             message: message.message.to_owned(),
+            arrived_at: message.arrived_at,
             quote: quote_msg,
             attachments,
             reactions: Default::default(),
@@ -475,21 +665,45 @@ pub async fn save_attachment_on_disk(
     let attach_file = signal_manager.get_attachment(&attachment_pointer).await?;
     use mime2ext::mime2ext;
     let size = attachment_pointer.size() as usize;
-    log::info!("attachment size and stream size: {:?} == {:}", size,&attach_file.len());
+    log::info!(
+        "attachment size and stream size: {:?} == {:}",
+        size,
+        &attach_file.len()
+    );
     let ext = {
         let file_name = attachment_pointer.file_name();
-            use std::ffi::OsStr;
-            use std::path::Path;
-            match Path::new(file_name).extension().and_then(OsStr::to_str){
-                None => {
-                    match infer::get(&attach_file){
-                        Some(mime) => mime.extension(),
-                        None => ""
-                    }
-                }
-                Some(extension) => extension
-            }
+        use std::ffi::OsStr;
+        use std::path::Path;
+        match Path::new(file_name).extension().and_then(OsStr::to_str) {
+            None => match infer::get(&attach_file) {
+                Some(mime) => mime.extension(),
+                None => "",
+            },
+            Some(extension) => extension,
+        }
     };
     save_attachment(attachment_path.as_ref(), ext, &attach_file[..size]).await?;
     Ok(())
+}
+async fn upload_attachments(
+    manager: &presage::Manager<presage::SledConfigStore>,
+    attachments: Vec<(AttachmentSpec, Vec<u8>)>,
+    data_message: &mut DataMessage,
+) {
+    match manager.upload_attachments(attachments).await {
+        Ok(attachment_pointers) => {
+            data_message.attachments = attachment_pointers
+                .into_iter()
+                .filter_map(|res| {
+                    if let Err(e) = res.as_ref() {
+                        error!("failed to upload attachment: {}", e);
+                    }
+                    res.ok()
+                })
+                .collect();
+        }
+        Err(e) => {
+            error!("failed to upload attachments: {}", e);
+        }
+    }
 }

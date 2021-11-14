@@ -1,14 +1,10 @@
+use crate::views::style::Theme;
 use druid::im::{HashMap, Vector};
 use druid::{Data, Lens};
-use std::path::PathBuf;
-// use uuid::Uuid;
-
-use crate::views::style::Theme;
 use matrix::AppData as MatrixAppData;
 use signal::signal::{GROUP_IDENTIFIER_LEN, GROUP_MASTER_KEY_LEN};
-// use signal::{Channel, ChannelId};
-// use signal::AppData as SignalAppData;
-
+use std::path::PathBuf;
+use tokio::sync::mpsc::Sender;
 pub static mut OWNER: String = String::new();
 
 #[derive(Debug, Data, Clone, PartialEq, Eq)]
@@ -50,6 +46,8 @@ pub struct SignalData {
     pub current_channel: Option<ChannelId>,
     pub current_platform: Option<Platform>,
     pub user_id: String,
+    #[data(ignore)]
+    pub outgoing_msg_sender: Option<Sender<OutgoingMsg>>,
 }
 
 #[derive(Data, Lens, Clone, Default, Debug)]
@@ -87,6 +85,7 @@ pub type GroupIdentifierBytes = [u8; GROUP_IDENTIFIER_LEN];
 pub struct Message {
     pub from_id: String,
     pub message: Option<String>,
+    pub arrived_at: u64,
     #[data(ignore)]
     pub quote: Option<Box<Message>>,
     pub attachments: Vector<Attachment>,
@@ -105,5 +104,10 @@ pub struct Attachment {
 pub struct IncomingMsg {
     pub id: ChannelId,
     pub name: String,
+    pub message: Message,
+}
+
+pub struct OutgoingMsg {
+    pub channel_id: ChannelId,
     pub message: Message,
 }
