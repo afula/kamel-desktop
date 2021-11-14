@@ -1,7 +1,8 @@
-use crate::states::{Channel, Message, OutgoingMsg, SignalState, OWNER};
+use crate::states::{Channel, Message, OutgoingMsg, SignalState, Attachment,OWNER};
 use druid::keyboard_types::Key;
 use druid::widget::Controller;
 use druid::{Env, Event, EventCtx, Widget};
+use druid::im::Vector;
 
 pub struct MessageInputController;
 
@@ -22,12 +23,20 @@ where
                 if !state.data.input.is_empty() {
                     println!("current input: {:?}", &state.data.input);
                     let channel_id = state.data.current_channel.as_ref().unwrap();
+                    let mut attachments = Vector::new();
+                    let attachment = Attachment{
+                        id: "".to_string(),
+                        content_type: "".to_string(),
+                        filename: "/home/damo/Pictures/Screenshot_2021-10-05_07-01-21.png".to_string(),
+                        size: 0
+                    };
+                    attachments.push_back(attachment);
                     let message = Message {
                         from_id: state.data.user_id.to_owned(),
                         message: Some(state.data.input.to_owned()),
                         arrived_at: 0,
                         quote: None,
-                        attachments: Default::default(),
+                        attachments,
                         reactions: Default::default(),
                     };
                     let outgoing_msg = OutgoingMsg {

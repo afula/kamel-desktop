@@ -209,16 +209,17 @@ impl SignalProcessor {
                                 ..Default::default()
                             };
                             let mut attachments = Vec::with_capacity(msg.message.attachments.len());
+                            log::info!("before we read attachments: {:?}",&msg.message.attachments);
                             for attachment in msg.message.attachments {
                                 let path = Path::new(&attachment.filename);
                                 let contents = std::fs::read(path).context(format!("failed to read the file: {:?}",&attachment.filename))?;
 
-                                let content_type = mime_guess::from_path(path)
-                                    .first()
-                                    .map(|mime| mime.essence_str().to_string())
-                                    .unwrap_or_default();
+                                // let content_type = mime_guess::from_path(path)
+                                //     .first()
+                                //     .map(|mime| mime.essence_str().to_string())
+                                //     .unwrap_or_default();
                                 let spec = AttachmentSpec {
-                                    content_type,
+                                    content_type: "image/png".to_string(),
                                     length: contents.len(),
                                     file_name: Path::new(path)
                                         .file_name()
@@ -233,6 +234,7 @@ impl SignalProcessor {
                                 };
                                 attachments.push((spec, contents))
                             }
+                           log::info!("after we read attachments: {:?}",&attachments.len());
                             match channel_id {
                                 ChannelId::User(uuid) => {
                                     let manager = signal_manager_incoming.clone();
