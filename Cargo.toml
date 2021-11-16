@@ -5,8 +5,14 @@ members = [
     "gui",
     "signal",
     "matrix",
-    "app"
+    "app",
+#    "libsignal-service-rs/libsignal-service",
+#    "libsignal-service-rs/libsignal-service-hyper",
+#    "libsignal-client"
 ]
+build="build.rs"
+exclude = [ "./libsignal-client","./libsignal-service-rs" ]
+
 cargo-features = ["strip"]
 
 

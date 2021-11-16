@@ -2,7 +2,7 @@
 name = "kamel"
 version = "0.1.0"
 edition = "2021"
-
+build="build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -22,6 +22,9 @@ mime_guess = "2.0.3"
 mime2ext = {git ="https://github.com/blyxxyz/mime2ext.git"}
 infer = "0.3"
 gui = {path = "../gui"}
+
+[build-dependencies]
+prost-build = "0.8"
 
 [[bin]]
 name = "kamel"

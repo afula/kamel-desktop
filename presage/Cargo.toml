@@ -6,8 +6,11 @@ authors = ["Gabriel Féron <feron.gabriel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-libsignal-service = { git = "https://github.com/whisperfish/libsignal-service-rs" }
-libsignal-service-hyper = { git = "https://github.com/whisperfish/libsignal-service-rs.git" }
+#libsignal-service = { git = "https://github.com/whisperfish/libsignal-service-rs" }
+#libsignal-service-hyper = { git = "https://github.com/whisperfish/libsignal-service-rs.git" }
+
+libsignal-service = { path = "../libsignal-service-rs/libsignal-service" }
+libsignal-service-hyper = { path = "../libsignal-service-rs/libsignal-service-hyper" }
 
 async-trait = "0.1"
 base64 = "0.12"
